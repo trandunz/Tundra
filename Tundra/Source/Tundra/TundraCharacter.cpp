@@ -7,6 +7,8 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Controllers/TundraController.h"
+#include "Tundra/Widgets/PlayerHUD.h"
 #include "Kismet/KismetMathLibrary.h"
 
 ATundraCharacter::ATundraCharacter()
@@ -20,10 +22,11 @@ ATundraCharacter::ATundraCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true; 	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); 
 
-	GetCharacterMovement()->JumpZVelocity = 700.f;
-	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
-	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
+	GetCharacterMovement()->JumpZVelocity = 0.f;
+	GetCharacterMovement()->AirControl = 0.0;
+	GetCharacterMovement()->MaxWalkSpeed = 300.f;
+	GetCharacterMovement()->MinAnalogWalkSpeed = 300.f;
+	GetCharacterMovement()->MaxAcceleration = 0;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
@@ -39,7 +42,12 @@ ATundraCharacter::ATundraCharacter()
 void ATundraCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
+	if(ATundraController* controller = Cast<ATundraController>(Controller))
+	{
+		controller->SetInputMode(FInputModeGameAndUI{});
+		controller->SetShowMouseCursor(true);
+	}
+	
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
@@ -47,6 +55,17 @@ void ATundraCharacter::BeginPlay()
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+
+	if (IsLocallyControlled() && PlayerHUDAsset)
+	{
+		PlayerHUD = CreateWidget<UPlayerHUD>(GetController<ATundraController>(), PlayerHUDAsset.Get());
+		PlayerHUD->AddToPlayerScreen();
+	}
+}
+
+void ATundraCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
 }
 
 void ATundraCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -59,6 +78,8 @@ void ATundraCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerIn
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATundraCharacter::Look);
 		EnhancedInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ATundraCharacter::Zoom);
 		EnhancedInputComponent->BindAction(PitchAction, ETriggerEvent::Triggered, this, &ATundraCharacter::PitchCamera);
+		EnhancedInputComponent->BindAction(FreeLookAction, ETriggerEvent::Triggered, this, &ATundraCharacter::FreeLook);
+		EnhancedInputComponent->BindAction(FreeLookAction, ETriggerEvent::Completed, this, &ATundraCharacter::StopFreeLook);
 	}
 }
 
@@ -83,8 +104,14 @@ void ATundraCharacter::Look(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		AddControllerPitchInput(LookAxisVector.Y);
+		if (IsFreeLook)
+		{
+			AddControllerPitchInput(LookAxisVector.Y);
+			AddControllerYawInput(LookAxisVector.X);
+		}
 	}
+
+	
 }
 
 void ATundraCharacter::PitchCamera(const FInputActionValue& Value)
@@ -94,6 +121,30 @@ void ATundraCharacter::PitchCamera(const FInputActionValue& Value)
 	if (Controller != nullptr)
 	{
 		AddControllerYawInput(LookAxisVector);
+	}
+}
+
+void ATundraCharacter::FreeLook()
+{
+	IsFreeLook = true;
+
+	if(ATundraController* controller = Cast<ATundraController>(Controller))
+	{
+		controller->SetInputMode(FInputModeGameOnly{});
+		controller->SetShowMouseCursor(false);
+	}
+}
+
+void ATundraCharacter::StopFreeLook()
+{
+	IsFreeLook = false;
+
+	if(ATundraController* controller = Cast<ATundraController>(Controller))
+	{
+		FInputModeGameAndUI inputMode{};
+		inputMode.SetHideCursorDuringCapture(false);
+		controller->SetInputMode(inputMode);
+		controller->SetShowMouseCursor(true);
 	}
 }
 

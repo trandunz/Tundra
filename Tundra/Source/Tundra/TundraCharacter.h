@@ -6,6 +6,7 @@
 #include "TundraCharacter.generated.h"
 
 
+class UPlayerHUD;
 UCLASS(config=Game)
 class ATundraCharacter : public ACharacter
 {
@@ -35,14 +36,25 @@ class ATundraCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* ZoomAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* FreeLookAction;
+
+private:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = HUD, meta = (AllowPrivateAccess = "true"))
+	class TSubclassOf<UPlayerHUD> PlayerHUDAsset;
+	
 public:
 	float MaxMoveSpeed = 500.0f;
 	float InitialMoveSpeed = 500.0f;
 	float MinZoom = 600;
+	bool IsFreeLook{};
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = HUD, meta = (AllowPrivateAccess = "true"))
+	class UPlayerHUD* PlayerHUD;
 	
 public:
 	ATundraCharacter();
-	
 
 protected:
 	
@@ -51,6 +63,8 @@ protected:
 	void Look(const FInputActionValue& Value);
 	void PitchCamera(const FInputActionValue& Value);
 
+	void FreeLook();
+	void StopFreeLook();
 	void Zoom(const FInputActionValue& Value);
 			
 
@@ -58,6 +72,8 @@ protected:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
 	virtual void BeginPlay();
+
+	virtual void Tick(float DeltaSeconds) override;
 
 public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
