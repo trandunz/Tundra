@@ -7,9 +7,14 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "GridManager.h"
+#include "ToolBuilderUtil.h"
+#include "TundraPlayerState.h"
 #include "Controllers/TundraController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Tundra/Widgets/PlayerHUD.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Placeable/House.h"
 
 ATundraCharacter::ATundraCharacter()
 {
@@ -42,6 +47,19 @@ ATundraCharacter::ATundraCharacter()
 void ATundraCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	TArray<AActor*> actorsToFind;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AGridManager::StaticClass(), actorsToFind);
+
+	for (AActor* worldGridActor: actorsToFind)
+	{
+		if (AGridManager* grid = Cast<AGridManager>(worldGridActor))
+		{
+			WorldGrid = grid;
+			break;
+		}
+	}
+	
 	if(ATundraController* controller = Cast<ATundraController>(Controller))
 	{
 		controller->SetInputMode(FInputModeGameAndUI{});
@@ -66,6 +84,44 @@ void ATundraCharacter::BeginPlay()
 void ATundraCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (PlayerHUD)
+	{
+		PlayerHUD->UpdateMoneyText();
+	}
+	
+	if (ActorToPlace)
+	{
+		if (ATundraController* controller = Cast<ATundraController>(Controller))
+		{
+			FHitResult hitResult;
+			FVector mousePos;
+			FVector mouseDir;
+			controller->DeprojectMousePositionToWorld(mousePos, mouseDir);
+
+			if (GetWorld()->LineTraceSingleByChannel(hitResult, mousePos, (mouseDir * 5000.0f), ECC_GameTraceChannel1, {}))
+			{
+				ActorToPlace->SetActorLocation(WorldGrid->GetClosestGridPosition(hitResult.Location));
+			}
+		}
+
+		if (WorldGrid)
+		{
+			if (AHouse* house = Cast<AHouse>(ActorToPlace))
+			{
+				if (WorldGrid->IsGridPositionValid(ActorToPlace->GetActorLocation()))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("House Placement Good") );
+					house->SetValidLocation(true);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("House Placement Bad") );
+					house->SetValidLocation(false);
+				}
+			}
+		}
+	}
 }
 
 void ATundraCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -80,6 +136,8 @@ void ATundraCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerIn
 		EnhancedInputComponent->BindAction(PitchAction, ETriggerEvent::Triggered, this, &ATundraCharacter::PitchCamera);
 		EnhancedInputComponent->BindAction(FreeLookAction, ETriggerEvent::Triggered, this, &ATundraCharacter::FreeLook);
 		EnhancedInputComponent->BindAction(FreeLookAction, ETriggerEvent::Completed, this, &ATundraCharacter::StopFreeLook);
+		EnhancedInputComponent->BindAction(PlaceBuildingAction, ETriggerEvent::Triggered, this, &ATundraCharacter::ExecutePlacement);
+		EnhancedInputComponent->BindAction(CancelBuildingAction, ETriggerEvent::Triggered, this, &ATundraCharacter::EndPlacement);
 	}
 }
 
@@ -157,6 +215,57 @@ void ATundraCharacter::Zoom(const FInputActionValue& Value)
 		CameraBoom->TargetArmLength = FMath::Clamp((zoomAxis * 10.0f) + CameraBoom->TargetArmLength, MinZoom, 2000);
 
 		GetCharacterMovement()->MaxWalkSpeed = (CameraBoom->TargetArmLength / MinZoom) * InitialMoveSpeed;
+	}
+}
+
+void ATundraCharacter::StartPlacement(TSubclassOf<AActor> _actorToPlace)
+{
+	if (!ActorToPlace && _actorToPlace)
+	{
+		if (ATundraController* controller = Cast<ATundraController>(Controller))
+		{
+			FHitResult hitResult;
+			FVector mousePos;
+			FVector mouseDir;
+			controller->DeprojectMousePositionToWorld(mousePos, mouseDir);
+
+			if (GetWorld()->LineTraceSingleByChannel(hitResult, mousePos, (mouseDir * 1000.0f), ECC_GameTraceChannel1, {}))
+			{
+				ActorToPlace = GetWorld()->SpawnActor<AActor>(_actorToPlace, hitResult.Location, {});
+				if (AHouse* house = Cast<AHouse>(ActorToPlace))
+				{
+					house->SetGhosted(true);
+				}
+			}
+		}
+	}
+
+	
+}
+
+void ATundraCharacter::ExecutePlacement()
+{
+	if (ATundraPlayerState* playerState = Cast<ATundraPlayerState>(GetPlayerState()))
+	{
+		if (ActorToPlace)
+		{
+			if (IPlaceableInterface* placeable = Cast<IPlaceableInterface>(ActorToPlace))
+			{
+				if (placeable->Place(playerState->Money))
+				{
+					ActorToPlace = nullptr;
+				}
+			}
+		}
+	}
+}
+
+void ATundraCharacter::EndPlacement()
+{
+	if (ActorToPlace)
+	{
+		ActorToPlace->Destroy();
+		ActorToPlace = nullptr;
 	}
 }
 

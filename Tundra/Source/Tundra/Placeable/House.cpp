@@ -33,6 +33,8 @@ void AHouse::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	
+
 }
 
 void AHouse::OnMouseClick(UPrimitiveComponent* pComponent, FKey inKey)
@@ -56,6 +58,53 @@ void AHouse::OnMouseHoveEnd(UPrimitiveComponent* TouchedComponent)
 	for(auto& child : OtherMeshes)
 	{
 		child->SetRenderCustomDepth(false);
+	}
+}
+
+bool AHouse::Place(int& _playerMoney)
+{
+	if (_playerMoney >= 100)
+	{
+		SetGhosted(false);
+		_playerMoney -= 100;
+		return true;
+	}
+
+	return false;
+}
+
+void AHouse::SetGhosted(bool _isGhosted)
+{
+	if (_isGhosted && GhostMaterial)
+	{
+		Mesh->SetMaterial(0, GhostMaterial);
+
+		for(auto& otherMesh : OtherMeshes)
+		{
+			otherMesh->SetMaterial(0, GhostMaterial);
+		}
+	}
+	else if (StandardMaterial)
+	{
+		Mesh->SetMaterial(0, StandardMaterial);
+
+		for(auto& otherMesh : OtherMeshes)
+		{
+			otherMesh->SetMaterial(0, StandardMaterial);
+		}
+	}
+}
+
+void AHouse::SetValidLocation(bool _isValidLocation)
+{
+	if (_isValidLocation && GreenGhostMaterial)
+	{
+		Mesh->SetMaterial(0, GreenGhostMaterial);
+
+		for(auto& otherMesh : OtherMeshes)
+		{
+			otherMesh->SetMaterial(0, GreenGhostMaterial);
+		}
 	}
 }
 

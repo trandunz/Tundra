@@ -6,6 +6,7 @@
 #include "TundraCharacter.generated.h"
 
 
+class AGridManager;
 class UPlayerHUD;
 UCLASS(config=Game)
 class ATundraCharacter : public ACharacter
@@ -39,9 +40,19 @@ class ATundraCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* FreeLookAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* PlaceBuildingAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* CancelBuildingAction;
+
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = HUD, meta = (AllowPrivateAccess = "true"))
 	class TSubclassOf<UPlayerHUD> PlayerHUDAsset;
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= Placement, meta = (AllowPrivateAccess))
+	 AActor* ActorToPlace;
 	
 public:
 	float MaxMoveSpeed = 500.0f;
@@ -49,12 +60,18 @@ public:
 	float MinZoom = 600;
 	bool IsFreeLook{};
 
+	AGridManager* WorldGrid;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = HUD, meta = (AllowPrivateAccess = "true"))
 	class UPlayerHUD* PlayerHUD;
 	
 public:
 	ATundraCharacter();
+
+	void StartPlacement(TSubclassOf<AActor> _actorToPlace);
+	void ExecutePlacement();
+	void EndPlacement();
 
 protected:
 	
